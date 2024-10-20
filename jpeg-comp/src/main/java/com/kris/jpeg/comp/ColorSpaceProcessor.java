@@ -1,8 +1,6 @@
 package com.kris.jpeg.comp;
 
-//import java.awt.*;
 import java.awt.image.BufferedImage;
-//import java.awt.image.PixelGrabber;
 
 public class ColorSpaceProcessor {
 
@@ -16,12 +14,12 @@ public class ColorSpaceProcessor {
         return Math.max(0, Math.min(255, (int)((yFactor * r + uFactor * g + vFactor * b) + offset)));
     }
 
-    private static int getYUVComponentDecomp(int yuv, int shift, int offset) {
-        return getRGBComponentComp(yuv, shift) + offset;
+    private static int getYUVComponentDecomp(int yuv, int shift) {
+        return getRGBComponentComp(yuv, shift); //+ offset;
     }
 
-    private static int getRGBComponentDecomp(int y, int u, int v, float rFactor, float gFactor, float bFactor) {
-        return Math.max(0, Math.min(255, (int)(rFactor * (y - 16) + gFactor * (u - 128) + bFactor * (v - 128))));
+    private static int getRGBComponentDecomp(int y, int u, int v, float gFactor, float bFactor) {
+        return Math.max(0, Math.min(255, (int)(/*rFactor*/ 1.0f * (y - 16) + gFactor * (u - 128) + bFactor * (v - 128))));
     }
 
     private static int getYuv(int rgb) {
@@ -38,17 +36,13 @@ public class ColorSpaceProcessor {
     }
 
     private static int getRgb(int yuv) {
-        int Y = getYUVComponentDecomp(yuv, 16, 0);
-        int U = getYUVComponentDecomp(yuv, 8, -128);
-        int V = getYUVComponentDecomp(yuv, 0, -128);
+        int Y = getYUVComponentDecomp(yuv, 16);
+        int U = getYUVComponentDecomp(yuv, 8);
+        int V = getYUVComponentDecomp(yuv, 0);
 
-//                int r = getRGBComponentDecomp(Y, U, V, 1.164f, 0.0f, 1.596f);
-//                int g = getRGBComponentDecomp(Y, U, V, 1.164f, -0.392f, -0.813f);
-//                int b = getRGBComponentDecomp(Y, U, V, 1.164f, 2.017f, 0.0f);
-
-        int r = getRGBComponentDecomp(Y, U, V, 1.0f, 0.0f, 1.402f);
-        int g = getRGBComponentDecomp(Y, U, V, 1.0f, -0.344f, -0.714f);
-        int b = getRGBComponentDecomp(Y, U, V, 1.0f, 1.772f, 0.0f);
+        int r = getRGBComponentDecomp(Y, U, V, 0.0f, 1.402f);
+        int g = getRGBComponentDecomp(Y, U, V, -0.344f, -0.714f);
+        int b = getRGBComponentDecomp(Y, U, V, 1.772f, 0.0f);
 
         return ((r << 16) | (g << 8) | b);
     }
@@ -66,6 +60,17 @@ public class ColorSpaceProcessor {
                 yuvImage.setRGB(x, y, yuv);
             }
         }
+
+//        int[] pixels = ((DataBufferInt) yuvImage.getRaster().getDataBuffer()).getData();
+//
+//        for (int i = 0; i < pixels.length; i++) {
+//            System.out.printf("%08X ", pixels[i]);
+//
+//            if ((i + 1) % 8 == 0) {
+//                System.out.println();
+//            }
+//        }
+
         return yuvImage;
     }
 
@@ -82,6 +87,17 @@ public class ColorSpaceProcessor {
                 rgbImage.setRGB(x, y, rgb);
             }
         }
+
+//        int[] pixels = ((DataBufferInt) rgbImage.getRaster().getDataBuffer()).getData();
+//
+//        for (int i = 0; i < pixels.length; i++) {
+//            System.out.printf("%08X ", pixels[i]);
+//
+//            if ((i + 1) % 8 == 0) {
+//                System.out.println();
+//            }
+//        }
+
         return rgbImage;
     }
 }
