@@ -9,53 +9,91 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class JpegCompressor {
-    private final int quality;
-    private final int blockSize;
+
+    private final ColorSpaceProcessor colorSpaceProcessor;
+    private final ChrominanceSubsampler chrominanceSubsampler;
+    private final TrigonometricProcessor trigonometricProcessor;
 
     public JpegCompressor() {
-        this.quality = 1;
-        this.blockSize = 8;
+        colorSpaceProcessor = new ColorSpaceProcessor();
+        chrominanceSubsampler = new ChrominanceSubsampler();
+        trigonometricProcessor = new TrigonometricProcessor();
     }
 
-    public static void compress(String name) {
+    public void run() {
+        compress("src/main/resources/static/input.jpeg");
+        decompress(/*"target/output-images/step-4-comp-dct.jpg"*/);
+    }
+
+    public void compress(String name) {
         try {
-            // Load the image
             File inputFile = new File(name);
             BufferedImage rgbImage = ImageIO.read(inputFile);
 
-            // Convert the image from RGB to YUV
-            BufferedImage yuvImage = ColorSpaceProcessor.convertRGBToYUV(rgbImage);
+            BufferedImage yuvImage = colorSpaceProcessor.convertRGBToYUV(rgbImage);
 
             Files.createDirectories(Paths.get("target/output-images"));
 
-            // Save the YUV image as a JPG
-            FileOutputStream outputFile = new FileOutputStream("target/output-images/output_image_yuv.jpg");
+            FileOutputStream outputFile = new FileOutputStream("target/output-images/step-1-comp-yuv.jpg");
             ImageIO.write(yuvImage, "jpg", outputFile);
 
             System.out.println("Image successfully converted and saved!");
 
+            ////////////////////////////////////////////////////
+
+            BufferedImage downsampledImage = chrominanceSubsampler.downsample(yuvImage);
+
+            File downsampledOutput = new File("target/output-images/step-2-comp-downsampled.jpg");
+            ImageIO.write(downsampledImage, "jpg", downsampledOutput);
+            System.out.println("Image successfully downsampled and saved!");
+
+            ////////////////////////////////////////////////////
+
+            trigonometricProcessor.processImage(downsampledImage);
+
+            File dctImageOutputY = new File("target/output-images/step-4-comp-Y-dct.jpg");
+            ImageIO.write(trigonometricProcessor.getYDCTImage(), "jpg", dctImageOutputY);
+            File dctImageOutputU = new File("target/output-images/step-4-comp-U-dct.jpg");
+            ImageIO.write(trigonometricProcessor.getUDCTImage(), "jpg", dctImageOutputU);
+            File dctImageOutputV = new File("target/output-images/step-4-comp-V-dct.jpg");
+            ImageIO.write(trigonometricProcessor.getVDCTImage(), "jpg", dctImageOutputV);
+
+            System.out.println("Successfully performed dct and saved!");
+
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error loading or saving image: " + e.getMessage());
         }
     }
 
-    public static void decompress(String name) {
+    public void decompress(/*String name*/) {
         try {
-            // Load the YUV image
-            File inputFile = new File(name);
-            BufferedImage yuvImage = ImageIO.read(inputFile);
+            BufferedImage idctImage = trigonometricProcessor.reconstructImage(trigonometricProcessor.getYDCTImage(),
+                                                                                trigonometricProcessor.getUDCTImage(),
+                                                                                trigonometricProcessor.getVDCTImage());
 
-            // Convert the YUV image back to RGB
-            BufferedImage rgbImage = ColorSpaceProcessor.convertYUVToRGB(yuvImage);
+            File idctOutput = new File("target/output-images/step-4-decomp-idct.jpg");
+            ImageIO.write(idctImage, "jpg", idctOutput);
+            System.out.println("Successfully performed idct and saved!");
 
-            // Save the RGB image as a JPG
-            File outputFile = new File("target/output-images/output_image_rgb.jpg");
+            ////////////////////////////////////////////
+
+            BufferedImage upsampledImage = chrominanceSubsampler.upsample(idctImage);
+
+            File upsampledOutput = new File("target/output-images/step-2-decomp-upsampled.jpg");
+            ImageIO.write(upsampledImage, "jpg", upsampledOutput);
+            System.out.println("Image successfully upsampled and saved!");
+
+            ////////////////////////////////////////////
+
+            BufferedImage rgbImage = colorSpaceProcessor.convertYUVToRGB(upsampledImage);
+
+            File outputFile = new File("target/output-images/step-1-decomp-rgb.jpg");
             ImageIO.write(rgbImage, "jpg", outputFile);
 
             System.out.println("YUV image successfully converted back to RGB and saved!");
 
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error loading or saving image: " + e.getMessage());
         }
     }
 }
