@@ -12,31 +12,30 @@ import java.awt.image.Raster;
 public class TrigonometricProcessor {
     private final int BLOCK_SIZE = 8;
     private final double COEF1 = (1 / Math.sqrt(2));
-    private final double COEF2 = 1;//(Math.sqrt( 2.0 / BLOCK_SIZE));
+    private final double COEF2 = 1;
     private BufferedImage yDCTImage;
     private BufferedImage uDCTImage;
     private BufferedImage vDCTImage;
 
-    private int[][] performDCT(int[][] block, int quantMatrixNum) {
-        int[][] dctBlock = new int[BLOCK_SIZE][BLOCK_SIZE];
-        for (int u = 0; u < BLOCK_SIZE; u++) {
-            for (int v = 0; v < BLOCK_SIZE; v++) {
+    private int[][] performDCT(int[][] block, int height, int width, int quantMatrixNum) {
+        int[][] dctBlock = new int[height][width];
+        for (int u = 0; u < height; u++) {
+            for (int v = 0; v < width; v++) {
                 double au = (u == 0) ? COEF1 : COEF2;
                 double av = (v == 0) ? COEF1 : COEF2;
 
                 double sum = 0.0;
-                for (int x = 0; x < BLOCK_SIZE; x++) {
-                    for (int y = 0; y < BLOCK_SIZE; y++) {
-                        sum += (double)(block[x][y] - 128) *
-                                Math.cos(((2 * x + 1) * u * Math.PI) / (2.0 * BLOCK_SIZE))
-                                * Math.cos(((2 * y + 1) * v * Math.PI) / (2.0 * BLOCK_SIZE));
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        sum += (double)(block[y][x] - 128) *
+                                Math.cos(((2 * x + 1) * u * Math.PI) / (2.0 * width))
+                                * Math.cos(((2 * y + 1) * v * Math.PI) / (2.0 * height));
                     }
                 }
-                dctBlock[u][v] = (int)Math.round((( 2.0 / BLOCK_SIZE) * au * av * sum));
+                dctBlock[u][v] = (int)Math.round((( 2.0 / (Math.sqrt(height * width))) * au * av * sum));
             }
         }
-//        return dctBlock;
-        return Quantizator.quantize(dctBlock, BLOCK_SIZE, quantMatrixNum);
+        return Quantizator.quantize(dctBlock, height, width, quantMatrixNum);
     }
 
     public void processImage(BufferedImage image) {
@@ -51,12 +50,16 @@ public class TrigonometricProcessor {
 
         for (int y = 0; y < height; y += BLOCK_SIZE) {
             for (int x = 0; x < width; x += BLOCK_SIZE) {
-                int[][] yBlock = new int[BLOCK_SIZE][BLOCK_SIZE];
-                int[][] uBlock = new int[BLOCK_SIZE][BLOCK_SIZE];
-                int[][] vBlock = new int[BLOCK_SIZE][BLOCK_SIZE];
 
-                for (int i = 0; i < BLOCK_SIZE; i++) {
-                    for (int j = 0; j < BLOCK_SIZE; j++) {
+                int actualBlockWidth = Math.min(BLOCK_SIZE, width - x);
+                int actualBlockHeight = Math.min(BLOCK_SIZE, height - y);
+
+                int[][] yBlock = new int[actualBlockHeight][actualBlockWidth];
+                int[][] uBlock = new int[actualBlockHeight][actualBlockWidth];
+                int[][] vBlock = new int[actualBlockHeight][actualBlockWidth];
+
+                for (int i = 0; i < actualBlockHeight; i++) {
+                    for (int j = 0; j < actualBlockWidth; j++) {
                         if (x + j < width && y + i < height) {
                             int[] yuv = raster.getPixel(x + j, y + i, (int[]) null);
 
@@ -67,20 +70,20 @@ public class TrigonometricProcessor {
                     }
                 }
 
-                int[][] dctY = performDCT(yBlock, 1);
-                int[][] dctU = performDCT(uBlock, 2);
-                int[][] dctV = performDCT(vBlock, 2);
+                int[][] dctY = performDCT(yBlock, actualBlockHeight, actualBlockWidth, 1);
+                int[][] dctU = performDCT(uBlock, actualBlockHeight, actualBlockWidth,2);
+                int[][] dctV = performDCT(vBlock, actualBlockHeight, actualBlockWidth,2);
 
-                saveBlockToImage(yDCTImage, dctY, x, y);
-                saveBlockToImage(uDCTImage, dctU, x, y);
-                saveBlockToImage(vDCTImage, dctV, x, y);
+                saveBlockToImage(yDCTImage, dctY, actualBlockHeight, actualBlockWidth, x, y);
+                saveBlockToImage(uDCTImage, dctU, actualBlockHeight, actualBlockWidth, x, y);
+                saveBlockToImage(vDCTImage, dctV, actualBlockHeight, actualBlockWidth, x, y);
             }
         }
     }
 
-    private void saveBlockToImage(BufferedImage image, int[][] block, int startX, int startY) {
-        for (int i = 0; i < BLOCK_SIZE; i++) {
-            for (int j = 0; j < BLOCK_SIZE; j++) {
+    private void saveBlockToImage(BufferedImage image, int[][] block, int height, int width, int startX, int startY) {
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
                 int x = startX + j;
                 int y = startY + i;
 
@@ -96,26 +99,26 @@ public class TrigonometricProcessor {
 
     //////////////////////////////////////////////////////
 
-    private int[][] performIDCT(int[][] dctBlock, int quantMatrixNum) {
+    private int[][] performIDCT(int[][] dctBlock, int height, int width, int quantMatrixNum) {
 
-        dctBlock = Quantizator.dequantize(dctBlock, BLOCK_SIZE, quantMatrixNum);
+        dctBlock = Quantizator.dequantize(dctBlock, height, width, quantMatrixNum);
 
-        int[][] block = new int[BLOCK_SIZE][BLOCK_SIZE];
+        int[][] block = new int[height][width];
 
-        for (int x = 0; x < BLOCK_SIZE; x++) {
-            for (int y = 0; y < BLOCK_SIZE; y++) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
                 double sum = 0.0;
-                for (int u = 0; u < BLOCK_SIZE; u++) {
-                    for (int v = 0; v < BLOCK_SIZE; v++) {
+                for (int u = 0; u < height; u++) {
+                    for (int v = 0; v < width; v++) {
                         double au = (u == 0) ? COEF1 : COEF2;
                         double av = (v == 0) ? COEF1 : COEF2;
                         sum += au * av * dctBlock[u][v] *
-                                Math.cos(((2 * x + 1) * u * Math.PI) / (2.0 * BLOCK_SIZE)) *
-                                Math.cos(((2 * y + 1) * v * Math.PI) / (2.0 * BLOCK_SIZE));
+                                Math.cos(((2 * x + 1) * u * Math.PI) / (2.0 * width)) *
+                                Math.cos(((2 * y + 1) * v * Math.PI) / (2.0 * height));
                     }
                 }
 
-                block[x][y] = Math.round(Math.round((2.0 / BLOCK_SIZE) * sum)) + 128;
+                block[y][x] = Math.round(Math.round((2.0 / (Math.sqrt(width * height))) * sum)) + 128;
             }
         }
         return block;
@@ -128,16 +131,19 @@ public class TrigonometricProcessor {
 
         for (int y = 0; y < height; y += BLOCK_SIZE) {
             for (int x = 0; x < width; x += BLOCK_SIZE) {
-                int[][] dctY = extractBlockFromImage(yDCTImage, x, y);
-                int[][] dctU = extractBlockFromImage(uDCTImage, x, y);
-                int[][] dctV = extractBlockFromImage(vDCTImage, x, y);
+                int actualBlockWidth = Math.min(BLOCK_SIZE, width - x);
+                int actualBlockHeight = Math.min(BLOCK_SIZE, height - y);
 
-                int[][] yBlock = performIDCT(dctY, 1);
-                int[][] uBlock = performIDCT(dctU, 2);
-                int[][] vBlock = performIDCT(dctV, 2);
+                int[][] dctY = extractBlockFromImage(yDCTImage, actualBlockHeight, actualBlockWidth, x, y);
+                int[][] dctU = extractBlockFromImage(uDCTImage, actualBlockHeight, actualBlockWidth,x, y);
+                int[][] dctV = extractBlockFromImage(vDCTImage, actualBlockHeight, actualBlockWidth,x, y);
 
-                for (int i = 0; i < BLOCK_SIZE; i++) {
-                    for (int j = 0; j < BLOCK_SIZE; j++) {
+                int[][] yBlock = performIDCT(dctY, actualBlockHeight, actualBlockWidth, 1);
+                int[][] uBlock = performIDCT(dctU, actualBlockHeight, actualBlockWidth, 2);
+                int[][] vBlock = performIDCT(dctV, actualBlockHeight, actualBlockWidth, 2);
+
+                for (int i = 0; i < actualBlockHeight; i++) {
+                    for (int j = 0; j < actualBlockWidth; j++) {
                         if (x + j < width && y + i < height) {
                             int yVal = clamp(yBlock[i][j]);
                             int uVal = clamp(uBlock[i][j]);
@@ -153,10 +159,10 @@ public class TrigonometricProcessor {
         return image;
     }
 
-    private int[][] extractBlockFromImage(BufferedImage image, int startX, int startY) {
-        int[][] block = new int[BLOCK_SIZE][BLOCK_SIZE];
-        for (int i = 0; i < BLOCK_SIZE; i++) {
-            for (int j = 0; j < BLOCK_SIZE; j++) {
+    private int[][] extractBlockFromImage(BufferedImage image, int height, int width, int startX, int startY) {
+        int[][] block = new int[height][width];
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
                 int x = startX + j;
                 int y = startY + i;
 

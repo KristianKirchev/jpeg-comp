@@ -35,13 +35,13 @@ public class Quantizator {
         return CHROMINANCE_QUANTIZATION_MATRIX;
     }
 
-    public static int[][] quantize(int[][] dctBlock, int blockSize, int matrixNum) {
+    public static int[][] quantize(int[][] dctBlock, int height, int width, int matrixNum) {
 
         int[][] quantizationMatrix = pickMatrix(matrixNum);
-        int[][] quantizedBlock = new int[blockSize][blockSize];
+        int[][] quantizedBlock = new int[height][width];
 
-        for (int i = 0; i < blockSize; i++) {
-            for (int j = 0; j < blockSize; j++) {
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
                 quantizedBlock[i][j] = Math.round((float) dctBlock[i][j] / quantizationMatrix[i][j]);
             }
         }
@@ -49,14 +49,14 @@ public class Quantizator {
         return quantizedBlock;
     }
 
-    public static int[][] dequantize(int[][] quantizedBlock, int blockSize, int matrixNum) {
+    public static int[][] dequantize(int[][] quantizedBlock, int height, int width, int matrixNum) {
 
         int[][] quantizationMatrix = pickMatrix(matrixNum);
 
-        int[][] dctBlock = new int[blockSize][blockSize];
+        int[][] dctBlock = new int[height][width];
 
-        for (int i = 0; i < blockSize; i++) {
-            for (int j = 0; j < blockSize; j++) {
+        for (int i = 0; i < height; i++) {
+            for (int j = 0; j < width; j++) {
                 dctBlock[i][j] = (quantizedBlock[i][j] - 128) * quantizationMatrix[i][j];
             }
         }

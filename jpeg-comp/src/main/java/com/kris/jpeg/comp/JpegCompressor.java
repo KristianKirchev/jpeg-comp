@@ -21,7 +21,7 @@ public class JpegCompressor {
     }
 
     public void run() {
-        compress("src/main/resources/static/tiger.jpeg");
+        compress("src/main/resources/static/input.jpeg");
         decompress(/*"target/output-images/step-4-comp-dct.jpg"*/);
     }
 
