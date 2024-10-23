@@ -10,7 +10,7 @@ import java.awt.image.Raster;
 @NoArgsConstructor
 @Getter
 public class TrigonometricProcessor {
-    private final int BLOCK_SIZE = 6;
+    private final int BLOCK_SIZE = 8;
     private final double COEF1 = (1 / Math.sqrt(2));
     private final double COEF2 = 1;//(Math.sqrt( 2.0 / BLOCK_SIZE));
     private BufferedImage yDCTImage;
