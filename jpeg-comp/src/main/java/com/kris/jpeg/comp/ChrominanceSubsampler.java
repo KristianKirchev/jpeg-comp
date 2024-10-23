@@ -50,12 +50,18 @@ public class ChrominanceSubsampler {
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
+                int downsampledX = x / 2;
+                int downsampledY = y / 2;
 
-                int Y = raster.getPixel(x, y, (int[]) null)[0];
-                float u = downsampledU[y / 2][x / 2];
-                float v = downsampledV[y / 2][x / 2];
+                // Check bounds
+                if (downsampledY < downsampledU.length && downsampledX < downsampledU[0].length) {
+                    int Y = raster.getPixel(x, y, (int[]) null)[0];
+                    float u = downsampledU[downsampledY][downsampledX];
+                    float v = downsampledV[downsampledY][downsampledX];
 
-                downsampledYUVImage.getRaster().setPixel(x, y, new int[]{Y, (int) u, (int) v});
+                    downsampledYUVImage.getRaster().setPixel(x, y, new int[]{Y, (int) u, (int) v});
+                }
+
             }
         }
 
