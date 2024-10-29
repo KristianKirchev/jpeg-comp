@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
+import java.util.List;
 
 @NoArgsConstructor
 @Getter
@@ -124,9 +125,9 @@ public class TrigonometricProcessor {
         return block;
     }
 
-    public BufferedImage reconstructImage(BufferedImage yDCTImage, BufferedImage uDCTImage, BufferedImage vDCTImage) {
-        int width = yDCTImage.getWidth();
-        int height = yDCTImage.getHeight();
+    public BufferedImage reconstructImage(List<BufferedImage> DCTData) {
+        int width = DCTData.getFirst().getWidth();
+        int height = DCTData.get(0).getHeight();
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
 
         for (int y = 0; y < height; y += BLOCK_SIZE) {
@@ -134,9 +135,9 @@ public class TrigonometricProcessor {
                 int actualBlockWidth = Math.min(BLOCK_SIZE, width - x);
                 int actualBlockHeight = Math.min(BLOCK_SIZE, height - y);
 
-                int[][] dctY = extractBlockFromImage(yDCTImage, actualBlockHeight, actualBlockWidth, x, y);
-                int[][] dctU = extractBlockFromImage(uDCTImage, actualBlockHeight, actualBlockWidth,x, y);
-                int[][] dctV = extractBlockFromImage(vDCTImage, actualBlockHeight, actualBlockWidth,x, y);
+                int[][] dctY = extractBlockFromImage(DCTData.get(0), actualBlockHeight, actualBlockWidth, x, y);
+                int[][] dctU = extractBlockFromImage(DCTData.get(1), actualBlockHeight, actualBlockWidth,x, y);
+                int[][] dctV = extractBlockFromImage(DCTData.get(2), actualBlockHeight, actualBlockWidth,x, y);
 
                 int[][] yBlock = performIDCT(dctY, actualBlockHeight, actualBlockWidth, 1);
                 int[][] uBlock = performIDCT(dctU, actualBlockHeight, actualBlockWidth, 2);
