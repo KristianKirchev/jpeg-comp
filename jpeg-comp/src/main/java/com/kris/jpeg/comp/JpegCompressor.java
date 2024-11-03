@@ -111,9 +111,6 @@ public class JpegCompressor {
         System.out.println("|            Start decompression           |");
         System.out.println("--------------------------------------------");
 
-//        BufferedImage idctImage = trigonometricProcessor.reconstructImage(trigonometricProcessor.getYDCTImage(),
-//                                                                            trigonometricProcessor.getUDCTImage(),
-//                                                                            trigonometricProcessor.getVDCTImage());
         BufferedImage idctImage = trigonometricProcessor.reconstructImage(entropyEncoder.entropyDecoding());
         System.out.println("Successfully performed idct!");
 
