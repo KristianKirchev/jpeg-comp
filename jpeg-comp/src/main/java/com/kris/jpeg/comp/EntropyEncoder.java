@@ -3,8 +3,9 @@ package com.kris.jpeg.comp;
 import lombok.NoArgsConstructor;
 
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 
 @NoArgsConstructor
 public class EntropyEncoder {
@@ -19,19 +20,40 @@ public class EntropyEncoder {
     private int matrixHeight;
     private int matrixWidth;
 
+    private Map<String, String> codesY;
+    private Map<String, String> codesU;
+    private Map<String, String> codesV;
 
-    public void entropyEncoding(TrigonometricProcessor trigonometricProcessor) {
+    private String encodedY;
+    private String encodedU;
+    private String encodedV;
+
+
+    public void entropyEncoding(TrigonometricProcessor trigonometricProcessor) throws IOException {
+
+        codesY = new HashMap<>();
+        codesU = new HashMap<>();
+        codesV = new HashMap<>();
+
         zigzagImageY = zigzagScan(trigonometricProcessor.getYDCTImage());
         zigzagImageU = zigzagScan(trigonometricProcessor.getUDCTImage());
         zigzagImageV = zigzagScan(trigonometricProcessor.getVDCTImage());
 
-        rleImageY = rleProcess(zigzagImageY);
-        rleImageU = rleProcess(zigzagImageU);
-        rleImageV = rleProcess(zigzagImageV);
+        rleImageY = rleProcess(zigzagImageY, "Y");
+        rleImageU = rleProcess(zigzagImageU, "U");
+        rleImageV = rleProcess(zigzagImageV, "V");
 
+        encodedY = huffmanEncode(rleImageY, codesY, "Y");
+        encodedU = huffmanEncode(rleImageU, codesU, "U");
+        encodedV = huffmanEncode(rleImageV, codesV, "V");
     }
 
     public List<BufferedImage> entropyDecoding() {
+
+        rleImageY = huffmanDecoding(codesY, encodedY);
+        rleImageU = huffmanDecoding(codesU, encodedU);
+        rleImageV = huffmanDecoding(codesV, encodedV);
+
         zigzagImageY = inverseRleProcess(rleImageY);
         zigzagImageU = inverseRleProcess(rleImageU);
         zigzagImageV = inverseRleProcess(rleImageV);
@@ -135,9 +157,9 @@ public class EntropyEncoder {
 
     ////////////////////////////////////////////////////////////////////////
 
-    private String rleProcess(int[] dctChannel) {
+    private String rleProcess(int[] dctChannel, String file) throws IOException {
 
-        String rle = "";
+        StringBuilder rle = new StringBuilder();
 
         int currEl = dctChannel[0];
         int repeat = 1;
@@ -147,15 +169,21 @@ public class EntropyEncoder {
                 repeat++;
             }
             else {
-                rle += "|" + currEl + (repeat == 1 ? "" : ("," + repeat));
+                rle.append("|").append(currEl).append(repeat == 1 ? "" : ("," + repeat));
                 currEl = dctChannel[i];
                 repeat = 1;
             }
         }
 
-        rle += "|" + currEl + (repeat == 1 ? "" : ("," + repeat));
+        rle.append("|").append(currEl).append(repeat == 1 ? "" : ("," + repeat)).append("|");
 
-        return rle + "|";
+        String fileName = "target/output-images/step-6-rleProcessed" + file + ".bin";
+
+        FileWriter myWriter = new FileWriter(fileName);
+        myWriter.write(String.valueOf(rle));
+        myWriter.close();
+
+        return String.valueOf(rle);
     }
 
     private int[] inverseRleProcess(String rleString) {
@@ -182,5 +210,98 @@ public class EntropyEncoder {
         }
 
         return result.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    ////////////////////////////////////////////////////////////////////////
+
+    private void countFrequencies(String word, List<HuffNode> huffNodes) {
+        Map<Character, Integer> frequencies = new HashMap<>();
+        for (char charValue : word.toCharArray()) {
+            if (!frequencies.containsKey(charValue)) {
+                int freq = 0;
+                for (char ch : word.toCharArray()) {
+                    if (ch == charValue) {
+                        freq++;
+                    }
+                }
+                frequencies.put(charValue, freq);
+                huffNodes.add(new HuffNode(String.valueOf(charValue), freq));
+            }
+        }
+    }
+
+    private HuffNode buildHuffTree(List<HuffNode> huffNodes) {
+        while (huffNodes.size() > 1) {
+            huffNodes.sort(Comparator.comparingInt(a -> a.freq));
+            HuffNode left = huffNodes.removeFirst();
+            HuffNode right = huffNodes.removeFirst();
+
+            HuffNode merged = new HuffNode(left.freq + right.freq);
+            merged.left = left;
+            merged.right = right;
+
+            huffNodes.add(merged);
+        }
+        return huffNodes.getFirst();
+    }
+
+    private void generateHuffmanCodes(HuffNode node, String currentCode, Map<String, String> codes) {
+        if (node == null) {
+            return;
+        }
+
+        if (!node.getCharValue().equals("\0")) {
+            codes.put(node.getCharValue(), currentCode);
+        }
+
+        generateHuffmanCodes(node.left, currentCode + '0', codes);
+        generateHuffmanCodes(node.right, currentCode + '1', codes);
+    }
+
+    private void huffmanEncoding(String word, List<HuffNode> huffNodes, Map<String, String> codes) {
+        huffNodes.clear();
+        countFrequencies(word, huffNodes);
+        HuffNode root = buildHuffTree(huffNodes);
+        generateHuffmanCodes(root, "", codes);
+
+    }
+
+    private String huffmanEncode(String rleImage, Map<String, String> codes, String file) throws IOException {
+
+        List<HuffNode> huffNodes = new ArrayList<>();
+
+        huffmanEncoding(rleImage, huffNodes, codes);
+        StringBuilder encodedWord = new StringBuilder();
+        for (char charValue : rleImage.toCharArray()) {
+            encodedWord.append(codes.get(String.valueOf(charValue)));
+        }
+
+        String fileName = "target/output-images/step-6-huffEncoded" + file + ".bin";
+        FileWriter myWriter = new FileWriter(fileName);
+        myWriter.write(String.valueOf(encodedWord));
+        myWriter.close();
+
+        return String.valueOf(encodedWord);
+    }
+
+    public String huffmanDecoding(Map<String, String> codes, String encodedWord) {
+
+        StringBuilder currentCode = new StringBuilder();
+        StringBuilder decodedChars = new StringBuilder();
+
+        Map<String, String> codeToChar = new HashMap<>();
+        for (Map.Entry<String, String> entry : codes.entrySet()) {
+            codeToChar.put(entry.getValue(), entry.getKey());
+        }
+
+        for (char bit : encodedWord.toCharArray()) {
+            currentCode.append(bit);
+            if (codeToChar.containsKey(currentCode.toString())) {
+                decodedChars.append(codeToChar.get(currentCode.toString()));
+                currentCode.setLength(0);
+            }
+        }
+
+        return decodedChars.toString();
     }
 }

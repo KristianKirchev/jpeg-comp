@@ -25,7 +25,9 @@ public class JpegCompressor {
     public void run() {
         try {
         compress("src/main/resources/static/input.jpeg", true);
-        decompress(/*"target/output-images/step-4-comp-dct.jpg", */true);
+//        compress("src/main/resources/static/tiger.jpeg", true);
+//        compress("src/main/resources/static/7202.jpg", true);
+        decompress(true);
         } catch (IOException e) {
             System.err.println("Error loading or saving image: " + e.getMessage());
         }
