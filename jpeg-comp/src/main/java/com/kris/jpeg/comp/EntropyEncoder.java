@@ -6,6 +6,8 @@ import java.awt.image.BufferedImage;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @NoArgsConstructor
 public class EntropyEncoder {
@@ -46,6 +48,8 @@ public class EntropyEncoder {
         encodedY = huffmanEncode(rleImageY, codesY, "Y");
         encodedU = huffmanEncode(rleImageU, codesU, "U");
         encodedV = huffmanEncode(rleImageV, codesV, "V");
+
+        System.out.println("FINAL IMAGE SIZE: " + (int)(Math.ceil(encodedY.length() / 8.0) + Math.ceil(encodedU.length() / 8.0) + Math.ceil(encodedV.length() / 8.0)) + " BYTES!!!");
     }
 
     public List<BufferedImage> entropyDecoding() {
@@ -157,25 +161,110 @@ public class EntropyEncoder {
 
     ////////////////////////////////////////////////////////////////////////
 
+//    private String rleProcess(int[] dctChannel, String file) throws IOException {
+//
+//        StringBuilder rle = new StringBuilder();
+//
+//        int currEl = dctChannel[0];
+//        int repeat = 1;
+//
+//        for (int i = 1; i < dctChannel.length; i++) {
+//            if (currEl == dctChannel[i]) {
+//                repeat++;
+//            }
+//            else {
+//                rle.append("|").append(currEl).append(repeat == 1 ? "" : repeat == 2 ? "," : ("," + repeat));
+//                currEl = dctChannel[i];
+//                repeat = 1;
+//            }
+//        }
+//
+//        rle.append("|").append(currEl).append(repeat == 1 ? "" : ("," + repeat)).append("|");
+//
+//        String fileName = "target/output-images/step-6-rleProcessed" + file + ".bin";
+//
+//        FileWriter myWriter = new FileWriter(fileName);
+//        myWriter.write(String.valueOf(rle));
+//        myWriter.close();
+//
+//        return String.valueOf(rle);
+//    }
+
+//    private int[] inverseRleProcess(String rleString) {
+//
+//        List<Integer> result = new ArrayList<>();
+//
+//        String[] sepParts = rleString.split("[|]");
+//
+//        for (String sepPart : sepParts) {
+//            if (sepPart.isEmpty()) {
+//                continue;
+//            }
+//
+//            if (!sepPart.contains(",")) {
+//                result.add(Integer.parseInt(sepPart));
+//            }
+//            else {
+//                String[] split = sepPart.split("[,]");
+//
+//                int repeat;
+//
+//                if (split.length == 1) {
+//                    repeat = 2;
+//                }
+//                else {
+//                    repeat = Integer.parseInt(split[1]);
+//                }
+//
+//                for (int i = 0; i < repeat; i++) {
+//                    result.add(Integer.parseInt(split[0]));
+//                }
+//            }
+//        }
+//
+//        return result.stream().mapToInt(Integer::intValue).toArray();
+//    }
+
     private String rleProcess(int[] dctChannel, String file) throws IOException {
 
         StringBuilder rle = new StringBuilder();
 
         int currEl = dctChannel[0];
         int repeat = 1;
+        String prevEl = "";
 
         for (int i = 1; i < dctChannel.length; i++) {
-            if (currEl == dctChannel[i]) {
+            if (currEl == dctChannel[i] && i != dctChannel.length - 1) {
                 repeat++;
             }
-            else {
-                rle.append("|").append(currEl).append(repeat == 1 ? "" : ("," + repeat));
+            else if (currEl != dctChannel[i] || i == dctChannel.length - 1) {
+                if (currEl == dctChannel[i]) {
+                    repeat++;
+                }
+
+                StringBuilder convertedEl = new StringBuilder();
+
+                int finalRepeat = repeat;
+                String.valueOf(currEl).codePoints().map(x -> {
+                    if (!Character.isDigit(x)) {
+                        return x;
+                    }
+
+                    return ((finalRepeat == 1) ? ('a' - '0') : ('A' - '0')) + x;
+                }).forEach(x -> convertedEl.append((char)x));
+
+                if (!prevEl.isEmpty() && String.valueOf(convertedEl).charAt(0) != '-' && prevEl.equals(prevEl.toLowerCase()) && String.valueOf(convertedEl).equals(String.valueOf(convertedEl).toLowerCase())) {
+                    rle.append("|");
+                }
+                rle.append((repeat == 1) ? "" : repeat).append(convertedEl);
+
+                prevEl = convertedEl.toString();
+
                 currEl = dctChannel[i];
                 repeat = 1;
             }
         }
 
-        rle.append("|").append(currEl).append(repeat == 1 ? "" : ("," + repeat)).append("|");
 
         String fileName = "target/output-images/step-6-rleProcessed" + file + ".bin";
 
@@ -186,31 +275,169 @@ public class EntropyEncoder {
         return String.valueOf(rle);
     }
 
-    private int[] inverseRleProcess(String rleString) {
-
+    private List<Integer> addValueToResult(String repeatPart, String encodedEl) {
         List<Integer> result = new ArrayList<>();
 
-        String[] sepParts = rleString.split("[|]");
+        int repeat = Integer.parseInt(repeatPart);
 
-        for (String sepPart : sepParts) {
-            if (sepPart.isEmpty()) {
-                continue;
+
+        StringBuilder decodedEl = new StringBuilder();
+        for (int i = 0; i < encodedEl.length(); i++) {
+            char ch = encodedEl.charAt(i);
+
+            if (Character.isUpperCase(ch)) {
+                decodedEl.append((char) (ch - ('A' - '0')));
+            } else if (Character.isLowerCase(ch)) {
+                decodedEl.append((char) (ch - ('a' - '0')));
+            } else {
+                decodedEl.append(ch);
             }
 
-            if (!sepPart.contains(",")) {
-                result.add(Integer.parseInt(sepPart));
-            }
-            else {
-                String[] split = sepPart.split("[,]");
+        }
 
-                for (int i = 0; i < Integer.parseInt(split[1]); i++) {
-                    result.add(Integer.parseInt(split[0]));
+        int value = Integer.parseInt(String.valueOf(decodedEl));
+
+        for (int i = 0; i < repeat; i++) {
+            result.add(value);
+        }
+
+        return result;
+    }
+
+    private int[] inverseRleProcess(String rleString) {
+        List<Integer> result = new ArrayList<>();
+
+        String[] split = rleString.split("\\|");
+
+        Pattern pattern = Pattern.compile("(\\d*)(-?[A-Z]|-?[a-z]*)");
+
+        for(String s : split) {
+            Matcher matcher = pattern.matcher(s);
+//            System.out.println(result);
+//            System.out.println("\n\n\nSPLIT S: " + s);
+
+            while (matcher.find()) {
+
+                if (matcher.group(2).isEmpty()) continue;
+
+                if (!matcher.group(1).isEmpty() && matcher.group(2).equals(matcher.group(2).toUpperCase())) {
+                    StringBuilder dig = new StringBuilder();
+                    StringBuilder el = new StringBuilder();
+
+                    for (char c : (matcher.group(1) + matcher.group(2)).toCharArray()) {
+//                        System.out.println("c: " + c + "digit: " + Character.isDigit(c));
+
+                        dig.append(Character.isDigit(c) ? c : "");
+                        el.append(Character.isUpperCase(c) || c == '-' ? c : "");
+                    }
+
+                    result.addAll(addValueToResult(String.valueOf(dig), String.valueOf(el)));
+                }
+                else  if (matcher.group(1).isEmpty()  && matcher.group(2).equals(matcher.group(2).toLowerCase())) {
+                    StringBuilder el = new StringBuilder();
+
+                    for (char c : matcher.group(2).toCharArray()) {
+                        el.append(Character.isLowerCase(c) || c == '-' ? c : "");
+                    }
+                    result.addAll(addValueToResult("1", String.valueOf(el)));
                 }
             }
         }
 
         return result.stream().mapToInt(Integer::intValue).toArray();
     }
+
+//    private int[] inverseRleProcess(String rleString) {
+//        List<Integer> result = new ArrayList<>();
+//
+//        String[] split = rleString.split("\\|");
+//
+//        Pattern pattern = Pattern.compile("(\\d+?-?[A-Z]*)?|(-?[a-z]+)?");
+//
+//        System.out.println(Arrays.toString(split));
+//
+//        for(String s : split) {
+//            Matcher matcher = pattern.matcher(s);
+//
+//            System.out.println("SPLIT S: " + s);
+//
+//            while(matcher.find()) {
+////                String repeatPart = "";
+////                String encodedEl = "";
+//
+//                if (matcher.group(2) != null && matcher.group(2).toLowerCase().equals(matcher.group(2))) {
+//                    addValueToResult("1", matcher.group(2), result);
+//                }
+//                else if ((matcher.group(1) != null && matcher.group(2) != null) && (matcher.group(1) + matcher.group(2)).toLowerCase().equals(matcher.group(1) + matcher.group(2))) {
+//                    StringBuilder dig = new StringBuilder();
+//                    StringBuilder el = new StringBuilder();
+//                    for (char c : matcher.group(1).toCharArray()) {
+//                        dig.append((Character.isDigit(c)) ? c : "");
+//                        el.append((Character.isUpperCase(c)) ? c : "");
+//                    }
+//
+//                    addValueToResult(String.valueOf(dig), String.valueOf(el), result);
+//                }
+//                else if (matcher.group(1) != null){
+//                    StringBuilder dig = new StringBuilder();
+//                    StringBuilder el = new StringBuilder();
+//                    StringBuilder elSing = new StringBuilder();
+//
+//                    boolean upper = false;
+//
+//                    for (char c : matcher.group(1).toCharArray()) {
+//                        if (Character.isUpperCase(c)) {
+//                            upper = true;
+//                        }
+//
+//                        el.append((c == '-' && !upper) ? c : "");
+//                        elSing.append((c == '-' && upper) ? c : "");
+//                        dig.append((Character.isDigit(c)) ? c : "");
+//                        el.append((Character.isUpperCase(c)) ? c : "");
+//                        elSing.append((Character.isLowerCase(c)) ? c : "");
+//                    }
+//
+//                    addValueToResult(String.valueOf(dig), String.valueOf(el), result);
+//                    addValueToResult("1", String.valueOf(elSing), result);
+//                }
+//
+////                System.out.println("REPEAT: " + repeatPart + " EL: " + encodedEl);
+//
+////                if (encodedEl == null) continue;
+//
+////                System.out.println("a");
+////
+////                int repeat = (repeatPart != null) ? Integer.parseInt(repeatPart) : 1;
+////                System.out.println("b");
+////
+////                StringBuilder decodedEl = new StringBuilder();
+////                for (int i = 0; i < encodedEl.length(); i++) {
+////                    char ch = encodedEl.charAt(i);
+////
+////                    if (Character.isUpperCase(ch)) {
+////                        decodedEl.append((char) (ch - ('A' - '0')));
+////                    } else if (Character.isLowerCase(ch)) {
+////                        decodedEl.append((char) (ch - ('a' - '0')));
+////                        break;
+////                    } else {
+////                        decodedEl.append(ch);
+////                    }
+////                }
+////                System.out.println("c");
+////
+////                int value = Integer.parseInt(decodedEl.toString());
+////
+////                System.out.println("d");
+////
+////                for (int i = 0; i < repeat; i++) {
+////                    result.add(value);
+////                }
+////                System.out.println("e");
+//            }
+//        }
+//
+//        return result.stream().mapToInt(Integer::intValue).toArray();
+//    }
 
     ////////////////////////////////////////////////////////////////////////
 
